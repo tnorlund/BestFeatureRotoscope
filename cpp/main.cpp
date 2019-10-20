@@ -26,7 +26,7 @@
 
 // debug flags
 int display_all = 0;
-int debug       = 0;
+int debug       = 1;
 
 // globals
 // for downsampleing
@@ -41,6 +41,7 @@ double               k = 0.04;
 
 const int MAXBYTES = 8*1024*1024;
 unsigned char buffer[MAXBYTES];
+int codec = cv::VideoWriter::fourcc('M', 'J', 'P', 'G');
 
 int main(int argc, char** argv) {
   double FPS, MAX_TIME, start_time, end_time, back_time;
@@ -185,20 +186,22 @@ int main(int argc, char** argv) {
       ROW,
       COL,
       CV_8UC1);  // make corner gray scale image
+    std::cout << "Finished finding center" << std::endl;
     DrawFeatures_binary(&corner_image, corners, factor);  // plot corners
     markers = markers.zeros(
       ROW,
       COL,
       CV_32SC1);  // make markers gray scale image
+    std::cout << "Finished drawing features" << std::endl;
     DrawFeatures_markers(
       &markers,
       corners,
       factor,
       0);  // plot markers
-
+    std::cout << "Finished drawing markers" << std::endl;
     // watershed segmentation
     waterShed_seg(&diff_image, &markers, ROW, COL);
-
+    std::cout << "Finished watershed" << std::endl;
     // calculate average color
     out = out.zeros(ROW, COL, CV_8UC3);  // make output color image
     local_out = local_out.zeros(ROW, COL, CV_8UC3);
@@ -210,7 +213,7 @@ int main(int argc, char** argv) {
       maxCorners+1,
       ROW,
       COL);  // apply color
-
+    std::cout << "Finished color palette" << std::endl;
     // receive frames from threads and output to video using root
     if (!my_rank) {
       output.write(out);
@@ -322,7 +325,7 @@ int initVideoOutput(
 
   output->open(
     static_cast<std::string>(name) + "_roto.avi",
-    cv::VideoWriter::fourcc('M', 'J', 'P', 'G'),
+    codec,
     *FPS,
     (cv::Size) cv::Size(*COL, *ROW), true);
 
@@ -554,7 +557,7 @@ void DrawFeatures_markers(
   for (int i = 0; i < size; ++i) {
     x = static_cast<int>(markers[i].x * factor);
     y = static_cast<int>(markers[i].y * factor);
-    image->at<int>(cv::Point(x, y)) = static_cast<char>(i+1+offset);
+    image->at<int>(cv::Point(x, y)) = i+1+offset;
   }
 }
 
