@@ -15,5 +15,5 @@ set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 include_directories( SYSTEM ${MPI_INCLUDE_PATH} )
 include_directories( ${OpenCV_INCLUDE_DIRS} )
 
-add_executable( main main.cpp )
+add_executable( main main.cpp roto.cpp )
 target_link_libraries( main ${OpenCV_LIBS} ${MPI_C_LIBRARIES})
