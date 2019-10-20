@@ -26,12 +26,11 @@
 
 // debug flags
 int display_all = 0;
-int debug = 0;
-
+int debug       = 0;
 
 // globals
 // for downsampleing
-int factor = 2;
+int factor             = 2;
 // for corner detection
 int         maxCorners = 1000;
 double    qualityLevel = 0.000001;
@@ -43,19 +42,10 @@ double               k = 0.04;
 const int MAXBYTES = 8*1024*1024;
 unsigned char buffer[MAXBYTES];
 
-int codec = cv::VideoWriter::fourcc('M', 'J', 'P', 'G');
-void matsnd(const cv::Mat& m, int dest);
-cv::Mat matrcv(int src);
-
-void merge(double arr[], int l, int m, int r);
-void mergeSort(double arr[], int l, int r);
-
-
-
 int main(int argc, char** argv) {
   double FPS, MAX_TIME, start_time, end_time, back_time;
   int MAX_FRAME, ROW, COL, current_frame, center[2], color[maxCorners+1][4],
-  end_frame, start_frame;
+    end_frame, start_frame;
   cv::Mat image_back, image_back_gray, image, image_gray, diff_image,
     diff_image_gray, diff_image_gray_ds, corner_image, mask, markers, out,
     local_out;
@@ -63,7 +53,7 @@ int main(int argc, char** argv) {
   cv::VideoCapture video;
   cv::VideoWriter output;
   int this_frame;
-  int frame_num;
+  int frame_num = 0;
   double local_start, local_finish, local_elapsed;
   double elapsed, average_elapsed, median_elapsed;
   double *times;
@@ -76,11 +66,6 @@ int main(int argc, char** argv) {
   clock_t begin = clock();
   if (!my_rank) {
     times = reinterpret_cast<double*>(comm_sz);
-  }
-  // writes = reinterpret_cast<bool*>(comm)
-  bool writes[comm_sz];
-  for (int i = 0; i < comm_sz; ++i) {
-    writes[i] = false;
   }
 
   // check input arg
@@ -165,7 +150,6 @@ int main(int argc, char** argv) {
     cv::imshow("Gray Image", image_gray);
     cv::waitKey(0);
   }
-  frame_num = 0;
 
   for (
     current_frame = start_frame;
@@ -182,7 +166,7 @@ int main(int argc, char** argv) {
     cv::absdiff(image, image_back, diff_image);
     cv::cvtColor(diff_image, diff_image_gray, cv::COLOR_BGR2GRAY);
 
-    // downsample image
+    // down sample image
     downSample(&diff_image_gray, &diff_image_gray_ds, factor, COL, ROW);
 
     // 1st round corner detection
@@ -196,17 +180,21 @@ int main(int argc, char** argv) {
       blockSize,
       useHarrisDetector,
       k);
-    GetCenter(corners, center, factor);  // get centroind
+    GetCenter(corners, center, factor);  // get centroid
     corner_image = corner_image.zeros(
       ROW,
       COL,
-      CV_8UC1);  // make corner grayscale image
+      CV_8UC1);  // make corner gray scale image
     DrawFeatures_binary(&corner_image, corners, factor);  // plot corners
     markers = markers.zeros(
       ROW,
       COL,
-      CV_32SC1);  // make markers grayscale image
-    DrawFeatures_markers(&markers, corners, factor, 0);  // plot markers
+      CV_32SC1);  // make markers gray scale image
+    DrawFeatures_markers(
+      &markers,
+      corners,
+      factor,
+      0);  // plot markers
 
     // watershed segmentation
     waterShed_seg(&diff_image, &markers, ROW, COL);
@@ -223,7 +211,7 @@ int main(int argc, char** argv) {
       ROW,
       COL);  // apply color
 
-    // recieve frames from threads and output to video using root
+    // receive frames from threads and output to video using root
     if (!my_rank) {
       output.write(out);
         for (int i = 1; i < comm_sz; i++) {
@@ -242,18 +230,20 @@ int main(int argc, char** argv) {
     cv::waitKey(0);
   }
 
-  if (!my_rank) {
-    elapsed = static_cast<double>(
-      (clock() - begin)/CLOCKS_PER_SEC);
+  if (!my_rank && debug) {
+    elapsed = static_cast<float>(clock() - begin)/CLOCKS_PER_SEC;
     std::cout << comm_sz << ",\t" << argv[3] << ",\t" << elapsed << std::endl;
   }
   MPI_Finalize();
   std::exit(EXIT_SUCCESS);
 }
 
-
-
-
+/**
+ * Loads a video from a specific file.
+ *
+ * @param filename the path to the file
+ * @param video[out] the video stream used to grab the frames from
+ */
 int loadVideo(char* filename, cv::VideoCapture* video) {
   video->open(filename);
   if (!video->isOpened()) {
@@ -263,8 +253,18 @@ int loadVideo(char* filename, cv::VideoCapture* video) {
   return 1;
 }
 
-
-
+/**
+ * Reads the video properties from the video stream.
+ *
+ * @param debug the flag that determines to show the video data
+ * @param video the video stream to read from
+ * @param FPS the frames per second of the video
+ * @param MAX_TIME the length of the video in seconds
+ * @param start_time
+ * @param MAX_FRAME the length of the video in the number of frames
+ * @param ROW the number of rows in each frame of the video
+ * @param COL the number of columns in each frame of the video
+ */
 void getVideoProperties(
   int debug,
   cv::VideoCapture* video,
@@ -275,11 +275,11 @@ void getVideoProperties(
   int* ROW,
   int* COL
 ) {
-  *FPS = video->get(cv::CAP_PROP_FPS);
+  *FPS       = video->get(cv::CAP_PROP_FPS);
   *MAX_FRAME = video->get(cv::CAP_PROP_FRAME_COUNT);
-  *ROW = video->get(cv::CAP_PROP_FRAME_HEIGHT);
-  *COL = video->get(cv::CAP_PROP_FRAME_WIDTH);
-  *MAX_TIME = static_cast<double>(*MAX_FRAME/(*FPS));
+  *ROW       = video->get(cv::CAP_PROP_FRAME_HEIGHT);
+  *COL       = video->get(cv::CAP_PROP_FRAME_WIDTH);
+  *MAX_TIME  = static_cast<double>(*MAX_FRAME/(*FPS));
 
   if (debug) {
     std::cout << std::endl << "Video Properties:" << std::endl;
@@ -292,7 +292,15 @@ void getVideoProperties(
 }
 
 
-
+/**
+ * Initializes the output video file.
+ *
+ * @param filename the path to the file
+ * @param output the stream of the output video
+ * @param ROW the number of rows in each frame of the video
+ * @param COL the number of columns in each frame of the video
+ * @param FPS the frames per second of the video
+ */
 int initVideoOutput(
   char* filename,
   cv::VideoWriter* output,
@@ -304,7 +312,6 @@ int initVideoOutput(
   char* extPtr;
   char* temp;
   snprintf(name, sizeof(name), "%s", filename);
-  // strcpy(name, filename);
   temp = strchr(name, '.');
   while ( temp != NULL ) {
     extPtr = temp;
@@ -315,7 +322,7 @@ int initVideoOutput(
 
   output->open(
     static_cast<std::string>(name) + "_roto.avi",
-    codec,
+    cv::VideoWriter::fourcc('M', 'J', 'P', 'G'),
     *FPS,
     (cv::Size) cv::Size(*COL, *ROW), true);
 
@@ -327,7 +334,14 @@ int initVideoOutput(
   return 1;
 }
 
-
+/**
+ * Determines whether the given "start time" is valid given the input video's data.
+ *
+ * @param debug the flag that determines to show the video data
+ * @param time the argument "start time" of the input video
+ * @param start_time the "start time" used in the algorithm
+ * @param MAX_TIME the length of the video in seconds
+ */
 int checkStartTime(
   int debug,
   char* time,
@@ -345,8 +359,15 @@ int checkStartTime(
   return 1;
 }
 
-
-
+/**
+ * Determines whether the given "end time" is valid given the input video's data.
+ *
+ * @param debug the flag that determines to show the video data
+ * @param time the argument "start time" of the input video
+ * @param start_time the "start time" used in the algorithm
+ * @param end_time the "end time" used in the algorithm
+ * @param MAX_TIME the length of the video in seconds
+ */
 int checkEndTime(
   int debug,
   char* time,
@@ -361,7 +382,7 @@ int checkEndTime(
     *end_time > MAX_TIME ||
     *end_time < 0 ||
     *end_time < *start_time) {
-    printf("\nInvalid End Time: %s\n", time);
+    std::cout << "\nInvalid End Time: " << time << std::endl;
     return 0;
   }
   if (debug) {
@@ -371,8 +392,17 @@ int checkEndTime(
   return 1;
 }
 
-
-
+/**
+ * Sets the background and foreground images.
+ *
+ * @param video the video stream to read from
+ * @param image the current frame
+ * @param image_back the frame that contains the background data
+ * @param back_time the time that the background data is obtained from
+ * @param start_time the "start time" used in the algorithm
+ * @param FPS the frames per second of the video
+ * @param current_frame the index of the frame relative to the start of the video
+ */
 int initImages(
   cv::VideoCapture* video,
   cv::Mat* image,
@@ -380,9 +410,10 @@ int initImages(
   double back_time,
   double start_time,
   double FPS,
-  int* current_frame) {
+  int* current_frame
+) {
   if (back_time > 0) {
-    *current_frame = back_time*FPS;
+    *current_frame = back_time * FPS;
     video->set(cv::CAP_PROP_POS_FRAMES, *current_frame);
   }
   video->read(*image_back);
@@ -401,8 +432,14 @@ int initImages(
   return 1;
 }
 
-
-
+/**
+ * Reads the next sequential frame from the video stream.
+ *
+ * @param debug the flag that determines to show the video data
+ * @param video the video stream to read from
+ * @param image the frame read from the video stream
+ * @param current_frame the index of the frame relative to the start of the video
+ */
 int getNextImage(
   int debug,
   cv::VideoCapture* video,
@@ -422,7 +459,15 @@ int getNextImage(
   return 1;
 }
 
-
+/**
+ * Down samples an image using a Gaussian pyramid.
+ *
+ * @param image the original image requested to down sample
+ * @param image_ds the destination that holds the down sampled image
+ * @param factor the factor that the image is down sampled by
+ * @param ROW the number of rows in each frame of the video
+ * @param COL the number of columns in each frame of the video
+ */
 void downSample(
   cv::Mat* image,
   cv::Mat* image_ds,
@@ -440,16 +485,21 @@ void downSample(
   }
 }
 
-
-
+/**
+ * Calculates the centroid of the markers given.
+ *
+ * @param markers the markers previously calculated
+ * @param center the (x,y) center of the markers given
+ * @param factor the scalar used to scale the original image
+ */
 void GetCenter(
-  std::vector<cv::Point2f> corners,
+  std::vector<cv::Point2f> markers,
   int* center,
   int factor
 ) {
   cv::Mat center_vector;
-  int size  = corners.size();
-  reduce(corners, center_vector, 01, cv::REDUCE_AVG);
+  int size  = markers.size();
+  reduce(markers, center_vector, 01, cv::REDUCE_AVG);
   cv::Point2f mean(
     center_vector.at<float>(0, 0),
     center_vector.at<float>(0, 1));
@@ -464,38 +514,60 @@ void GetCenter(
   }
 }
 
-
+/**
+ * Draws the markers onto an image.
+ *
+ * @param image the image to write the markers to
+ * @param markers the markers previously calculated
+ * @param factor the scalar used to scale the original image
+ */
 void DrawFeatures_binary(
   cv::Mat* image,
-  std::vector<cv::Point2f> corners,
+  std::vector<cv::Point2f> markers,
   int factor
 ) {
-  int size  = corners.size();
+  int x, y;
+  int size  = markers.size();
   for (int i = 0; i < size; ++i) {
-    image->at<uchar>(
-    static_cast<cv::Point>(
-        static_cast<int>(corners[i].x * factor),
-        static_cast<int>(corners[i].y * factor))) = 255;
+    x = static_cast<int>(markers[i].x * factor);
+    y = static_cast<int>(markers[i].y * factor);
+    image->at<int>(cv::Point(x, y)) = static_cast<char>(255);
   }
 }
 
-
+/**
+ * Draws the markers onto an image based on the index of the marker.
+ *
+ * @param image the image to write the markers to
+ * @param markers the markers previously calculated
+ * @param factor the scalar used to scale the original image
+ * @param offset the number to start with for indexing the markers
+ */
 void DrawFeatures_markers(
   cv::Mat* image,
-  std::vector<cv::Point2f> corners,
+  std::vector<cv::Point2f> markers,
   int factor,
   int offset
 ) {
-  int size  = corners.size();
+  int x, y;
+  int size  = markers.size();
   for (int i = 0; i < size; ++i) {
-    image->at<int>(
-      cv::Point(
-        static_cast<int>(corners[i].x * factor),
-        static_cast<int>(corners[i].y * factor))) = i+1+offset;
+    x = static_cast<int>(markers[i].x * factor);
+    y = static_cast<int>(markers[i].y * factor);
+    image->at<int>(cv::Point(x, y)) = static_cast<char>(i+1+offset);
   }
 }
 
-
+/**
+ * Writes a specific mask to an image matrix.
+ *
+ * @param mask the image to write the mask to
+ * @param center the (x,y) center of the markers given
+ * @param height the height of the mask
+ * @param width the width of the mask
+ * @param ROW the number of rows in each frame of the video
+ * @param COL the number of columns in each frame of the video
+ */
 void makeMask(
   cv::Mat* mask,
   int* center,
@@ -505,16 +577,16 @@ void makeMask(
   int COL
 ) {
   int limits[4] = {0, ROW, 0, COL};
-  if (center[0]-height > 0) {
+  if (center[0] - height > 0) {
     limits[0] = center[0]-height;
   }
-  if (center[0]+height < ROW) {
+  if (center[0] + height < ROW) {
     limits[1] = center[0]-height;
   }
-  if (center[1]-width > 0) {
+  if (center[1] - width > 0) {
     limits[2] = center[1]-width;
   }
-  if (center[1]+width < ROW) {
+  if (center[1] + width < ROW) {
     limits[3] = center[1]+width;
   }
   for (int i = limits[0]; i < limits[1]; i++) {
@@ -524,8 +596,14 @@ void makeMask(
   }
 }
 
-
-
+/**
+ * Compute the watershed segmentation based on specific markers
+ * 
+ * @param diff_image[out] the difference image computed
+ * @param markers[in] the markers computed
+ * @param ROW the number of rows in each frame of the video
+ * @param COL the number of columns in each frame of the video
+ */
 void waterShed_seg(
   cv::Mat* diff_image,
   cv::Mat* markers,
@@ -681,8 +759,17 @@ void waterShed_seg(
   }
 }
 
-
-
+/**
+ * Applies the average color found at the segmented area
+ *
+ * @param image[in] the original image
+ * @param markers[in] the markers computed
+ * @param out[out] the final image being written to
+ * @param color the colors written to the image
+ * @param maxIndex the largest index found in the image
+ * @param ROW the number of rows in each frame of the video
+ * @param COL the number of columns in each frame of the video
+ */
 void colorPalette(
   cv::Mat* image,
   cv::Mat* markers,
@@ -731,10 +818,16 @@ void colorPalette(
   }
 }
 
+/**
+ * Sends a matrix to a specific thread
+ *
+ * @param m the matrix sent to another thread
+ * @param dest the index of the thread to send to
+ */
 void matsnd(const cv::Mat& m, int dest) {
-  int rows  = m.rows;
-  int cols  = m.cols;
-  int type  = m.type();
+  int rows     = m.rows;
+  int cols     = m.cols;
+  int type     = m.type();
   int channels = m.channels();
   memcpy(
     &buffer[0 * sizeof(int)],
@@ -766,10 +859,15 @@ void matsnd(const cv::Mat& m, int dest) {
     MPI_COMM_WORLD);
 }
 
+/*
+ * Receives a matrix from a specific thread
+ *
+ * @param src the index of the thread to receive the image matrix from.
+ * @returns the received matrix
+ */
 cv::Mat matrcv(int src) {
   MPI_Status status;
   int count, rows, cols, type, channels;
-
   MPI_Recv(
     &buffer,
     sizeof(buffer),
@@ -802,7 +900,13 @@ cv::Mat matrcv(int src) {
   return received;
 }
 
-
+/**
+ * Merges an array for 
+ *
+ * @param arr the array to be merged
+ * @param l the left index
+ * @param r the right index
+ */
 void merge(double arr[], int l, int m, int r) {
   int i, j, k;
   int n1 = m - l + 1;
@@ -814,9 +918,9 @@ void merge(double arr[], int l, int m, int r) {
   for (j = 0; j < n2; j++)
     R[j] = arr[m + 1+ j];
 
-  i = 0;  // Initial index of first subarray
-  j = 0;  // Initial index of second subarray
-  k = l;  // Initial index of merged subarray
+  i = 0;  // Initial index of first sub-array
+  j = 0;  // Initial index of second sub-array
+  k = l;  // Initial index of merged sub-array
   while (i < n1 && j < n2) {
     if (L[i] <= R[j]) {
       arr[k] = L[i];
@@ -841,6 +945,13 @@ void merge(double arr[], int l, int m, int r) {
   }
 }
 
+/**
+ * Sorts an array of doubles using "merge sort"
+ *
+ * @param arr the array of doubles to sort
+ * @param l the left index
+ * @param r the right index
+ */
 void mergeSort(double arr[], int l, int r) {
   if (l < r) {
     int m = l+(r-l)/2;

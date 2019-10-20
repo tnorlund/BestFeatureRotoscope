@@ -1,7 +1,7 @@
+#include <vector>
 
-
-#ifndef _ROTOSCOPE_MAIN_H_
-#define _ROTOSCOPE_MAIN_H_
+#ifndef CPP_MAIN_HPP_
+#define CPP_MAIN_HPP_
 
 
 // Initializing Video Stream
@@ -67,19 +67,28 @@ void downSample(
   int COL,
   int ROW
 );
+
+/**
+ * Calculates the centroid of the markers given.
+ *
+ * @param markers the markers previously calculated
+ * @param center the (x,y) center of the markers given
+ * @param factor the scalar used to scale the original image
+ */
 void GetCenter(
-  std::vector<cv::Point2f> corners,
+  std::vector<cv::Point2f> markers,
   int* center,
   int factor
 );
+
 void DrawFeatures_binary(
   cv::Mat* image,
-  std::vector<cv::Point2f> corners,
+  std::vector<cv::Point2f> markers,
   int factor
 );
 void DrawFeatures_markers(
   cv::Mat* image,
-  std::vector<cv::Point2f> corners,
+  std::vector<cv::Point2f> markers,
   int factor,
   int offset
 );
@@ -97,6 +106,20 @@ void waterShed_seg(
   int ROW,
   int COL
 );
+void matsnd(const cv::Mat& m, int dest);
+cv::Mat matrcv(int src);
+
+/**
+ * Applies the average color found at the segmented area
+ *
+ * @param image[in] the original image
+ * @param markers[in] the markers computed
+ * @param out[out] the final image being written to
+ * @param color the colors written to the image
+ * @param maxIndex the largest index found in the image
+ * @param ROW the number of rows in each frame of the video
+ * @param COL the number of columns in each frame of the video
+ */
 void colorPalette(
   cv::Mat* image,
   cv::Mat* markers,
@@ -107,5 +130,22 @@ void colorPalette(
   int COL
 );
 
+/**
+ * Merges an array for 
+ *
+ * @param arr the array to be merged
+ * @param l the left index
+ * @param r the right index
+ */
+void merge(double arr[], int l, int m, int r);
 
-#endif // _ROTOSCOPE_MAIN_H_
+/**
+ * Sorts an array of doubles using "merge sort"
+ *
+ * @param arr the array of doubles to sort
+ * @param l the left index
+ * @param r the right index
+ */
+void mergeSort(double arr[], int l, int r);
+
+#endif  // CPP_MAIN_HPP_
